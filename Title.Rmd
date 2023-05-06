@@ -1,7 +1,7 @@
 ---
-title: "Untitled"
+title: "Flight price prediction"
 author: "David Alexander Moe"
-date: "2023-05-06"
+date: "2023-02-21"
 output: github_document
 ---
 
@@ -9,22 +9,949 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+### Introduction
+The objective of the study is to analyse the flight booking dataset obtained from “Ease My Trip” website and to conduct various statistical hypothesis tests in order to get meaningful information from it. The 'Linear Regression' statistical algorithm would be used to train the dataset and predict a continuous target variable. 'Easemytrip' is an internet platform for booking flight tickets, and hence a platform that potential passengers use to buy tickets. A thorough study of the data will aid in the discovery of valuable insights that will be of enormous value to passengers.
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+### Research Questions:
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+The aim of our study is to answer the below research questions:
 
-```{r cars}
-summary(cars)
+a) Does price vary with Airlines?
+
+b) How is the price affected when tickets are bought in just 1 or 2 days before departure?
+
+c) Does ticket price change based on the departure time and arrival time?
+
+d) How the price changes with change in Source and Destination?
+
+e) How does the ticket price vary between Economy and Business class?
+
+
+### Dataset
+
+
+Dataset contains information about flight booking options from the website Easemytrip for flight travel between India's top 6 metro cities. There are 300261 datapoints and 11 features in the cleaned dataset.
+
+### Features
+The various features of the cleaned dataset are explained below:
+
+1) Airline: The name of the airline company is stored in the airline column. It is a categorical feature having 6 different airlines.
+
+2) Flight: Flight stores information regarding the plane's flight code. It is a categorical feature.
+
+3) Source City: City from which the flight takes off. It is a categorical feature having 6 unique cities.
+
+4) Departure Time: This is a derived categorical feature obtained created by grouping time periods into bins. It stores information about the departure time and have 6 unique time labels.
+
+5) Stops: A categorical feature with 3 distinct values that stores the number of stops between the source and destination cities.
+
+
+6) Arrival Time: This is a derived categorical feature created by grouping time intervals into bins. It has six distinct time labels and keeps information about the arrival time.
+
+7) Destination City: City where the flight will land. It is a categorical feature having 6 unique cities.
+
+8) Class: A categorical feature that contains information on seat class; it has two distinct values: Business and Economy.
+
+9) Duration: A continuous feature that displays the overall amount of time it takes to travel between cities in hours.
+
+10) Days Left: This is a derived characteristic that is calculated by subtracting the trip date by the booking date.
+
+11) Price: Target variable stores information of the ticket price.
+
+
+### Libraries used
+```{r eval=FALSE}
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(nortest)
+library(randomForest)
+library(tidyverse)
+require(gridExtra)
+```
+Setting the seed for reproducibility and importing the data:
+```{r}
+set.seed(2023)
+data <- read.csv("G:/Il mio Drive/MAGISTRALE/Data Analysis/GIT folder/Clean_Dataset.csv")
 ```
 
-## Including Plots
+### Data inspection and intial preprocessing
+```{r}
+#First look
+str(data)
+data$X <- NULL
 
-You can also embed plots, for example:
+#Checking for rows with missing values
+nrow(data)
+data = na.omit(data)
+nrow(data)
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+#checking for duplicates
+sum(duplicated(data) == TRUE)
+
+#Changing wrong airlines names
+data$airline <- gsub("Air_India", "Air India", data$airline)
+data$airline <- gsub("GO_FIRST", "Go First", data$airline)
+data$airline <- gsub("AirAsia", "Air Asia", data$airline)
+
+attach(data) #For code simplicity
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+We note that there are no missing values and no duplicates. The dataset is clean.
+
+```{r}
+# quick look
+head(data)
+```
+
+### EDA
+
+### Categorical features
+
+Distributions of source and destination cities:
+```{r}
+#Creating frequency pie plot
+#par(mfrow=c(1,2))
+perc <- round(as.matrix(table(data$source_city))[1:length(table(data$source_city))]/nrow(data), 4)*100
+name <- names(table(data$source_city))
+name <- paste(name," (", perc, "%)", sep="")
+pie(perc, labels = name, col=heat.colors(length(table(data$source_city))), main = "Source cities frequencies")
+
+#Creating frequency pie plot
+perc <- round(as.matrix(table(data$destination_city))[1:length(table(data$destination_city))]/nrow(data), 4)*100
+name <- names(table(data$destination_city))
+name <- paste(name," (", perc, "%)", sep="")
+pie(perc, labels = name, col=heat.colors(length(table(data$destination_city))), main = "Destination cities frequencies")
+
+```
+
+```{r}
+#Creating frequency pie plot
+par(mfrow=c(1,1))
+perc <- round(as.matrix(table(data$airline))[1:length(table(data$airline))]/nrow(data), 2)*100
+name <- names(table(data$airline))
+name <- paste(name," (", perc, "%)", sep="")
+pie(perc, labels = name, col=heat.colors(length(table(data$airline))), main = "Airlines frequencies")
+```
+
+```{r}
+#Creating frequency pie plot
+#par(mfrow=c(1,2))
+perc <- round(as.matrix(table(data$departure_time))[1:length(table(data$departure_time))]/nrow(data), 2)*100
+name <- names(table(data$departure_time))
+name <- paste(name," (", perc, "%)", sep="")
+pie(perc, labels = name, col=heat.colors(length(table(data$departure_time))), main = "Departure time frequencies")
+
+#Creating frequency pie plot
+perc <- round(as.matrix(table(data$arrival_time))[1:length(table(data$arrival_time))]/nrow(data), 2)*100
+name <- names(table(data$arrival_time))
+name <- paste(name," (", perc, "%)", sep="")
+pie(perc, labels = name, col=heat.colors(length(table(data$arrival_time))), main = "Arrival time frequencies")
+
+```
+
+```{r}
+#Creating frequency pie plot
+par(mfrow=c(1,1))
+perc <- round(as.matrix(table(data$class))[1:length(table(data$class))]/nrow(data), 2)*100
+name <- names(table(data$class))
+name <- paste(name," (", perc, "%)", sep="")
+pie(perc, labels = name, col=heat.colors(length(table(data$class))), main = "Class frequencies")
+```
+
+### Numerical features
+
+```{r}
+library(ggplot2)
+#require(gridExtra)
+p1 <- ggplot(data, aes(x=duration)) + 
+  geom_boxplot(fill="#FF0000", alpha=0.2) +
+  labs(x = "Duration", title = "Boxplot of duration variable")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+p1
+p2 <- ggplot(data, aes(x=duration)) + 
+  geom_histogram(aes(y=after_stat(density)),      # Histogram with density instead of count on y-axis
+                 binwidth=.9,
+                 colour="black", fill="white") +
+  geom_density(alpha=.2, fill="#FF6666") + 
+  labs(x = "Duration", y = "Density", title = "Distribution of duration variable")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+p2
+#grid.arrange(p2, p1)
+```
+
+
+
+
+We can clearly notice three peaks in the histogram: we suspect that this is due to the difference in duration according to the number of stops. This is confirmed by looking at the next plot.
+```{r}
+ggplot(data, aes(x = duration, y = stops, fill = stops)) + 
+  geom_boxplot(fill="#FF6666", alpha=0.7) +
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "Boxplot of Duration by Number of Stops", x = "Duration", y = "Number of stops") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+```
+
+
+
+
+```{r}
+#days left
+p1 <- ggplot(data, aes(x=days_left)) + 
+  geom_boxplot(fill="#FF0000", alpha=0.2) +
+  labs(x = "Days left", title = "Boxplot of days left variable")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+p1
+p2 <- ggplot(data, aes(x=days_left)) + 
+  geom_histogram(aes(y=after_stat(density)),
+                 binwidth=0.9,
+                 colour="black", fill="white") +
+  geom_density(alpha=.2, fill="#FF6666") + 
+  labs(x = "Days left", y = "Density", title = "Distribution of days left variable")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+#grid.arrange(p2, p1, ncol=2)
+p2
+```
+
+
+
+
+Now we look at the distribution of our target feature. We Scale it using standardization to simplify computational calculation. The shape of the distribution remains obviously the same as the non-scaled one.
+```{r}
+#price (standardized because otherwise it would take too much time)
+p1 <- ggplot(data, aes(x=(price-mean(price))/sd(price))) + 
+  geom_boxplot(fill="#FF0000", alpha=0.2) +
+  labs(x = "Price", title = "Boxplot of price variable")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+p1
+p2 <- ggplot(data, aes(x=(price-mean(price))/sd(price))) + 
+  geom_histogram(aes(y=after_stat(density)),
+                 binwidth=.1,
+                 colour="black", fill="white") +
+  geom_density(alpha=.2, fill="#FF6666") +
+  labs(x = "Price", y = "Density", title = "Distribution of price variable")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                 panel.background = element_blank(), axis.line = element_line(colour = "black"))
+p2
+```
+
+
+
+
+Is possible to notice two peaks in the histogram: we suspect that one peak derives from economy class tickets and
+the other derives from business class tickets, which have a far higer price.
+
+We proceed with plotting the average flight ticket price barplot.
+
+
+```{r}
+#How does the ticket price vary between Economy and Business class?
+input <- aggregate(price ~ class, data, mean)
+ggplot(input, aes(x = class, y = price, fill = price)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "#FF9999", high = "#FF5555") +
+  labs(x = "Class", y = "Price", title = "Average price according to class") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+```
+
+
+Does prices vary with airlines?
+
+```{r}
+input <- aggregate(price ~ airline, data, mean)
+ggplot(input, aes(x = price, y = airline, fill = price)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "#FF9999", high = "#FF5555") +
+  labs(x = "Average price", y = "Airline", title = "Average price of each airline") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+```
+
+The answer is yes: price vary between airlines. But...
+
+```{r}
+#mean prices according to class and airline
+input <- aggregate(price ~ class + airline, data, mean)
+ggplot(input, aes(x = airline, y = price, fill = class)) +
+  geom_bar(stat = "identity", position="dodge", width=0.7) +
+  labs(x = "Class", y = "Price", fill= "Class", title = "Average price of each airline according to class") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+#from this plot we note also that not all companies offer business class
+#only vistara and air india offer business class
+```
+
+
+
+Does price vary according to the number of stops?
+```{r}
+#Does the price vary according to the number of stops?
+input <- aggregate(price ~ stops, data, mean)
+ggplot(input, aes(x = price, y = stops, fill = price)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "#FF9999", high = "#FF5555") +
+  labs(x = "Average price", y = "Number of stops", title = "Average price of each airline") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+```
+
+
+It seems that flights with two or more stops are cheaper than flights with only one stop. This is not true because the percentage of business tickets with two or more stops is much less than the tickets with one stop. From the following boxplots we note that the higher is the number of stops, the higher is the price, both for business and economy class.
+
+
+```{r}
+#This is not true in fact:
+p1 <- ggplot(data[data$class=="Economy",], aes(x = (price-mean(price))/sd(price) , y = stops, fill = stops)) + 
+  geom_boxplot(fill="#FF0000", alpha=0.7) +
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "Price boxplots for Economy by number of Stops", x = "Standardized price", y = "Number of stops") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  coord_flip()
+p1
+p2 <- ggplot(data[data$class=="Business",], aes(x = (price-mean(price))/sd(price) , y = stops, fill = stops)) + 
+  geom_boxplot(fill="#FF0000", alpha=0.7) +
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "Price boxplots for Business by Number of Stops", x = "Standardized price", y = "Number of stops") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  coord_flip()
+p2
+```
+
+
+How is the price affected when tickets are bought in just 1 or 2 days before departure?
+
+```{r  fig2, fig.height = 5, fig.width = 11, fig.align = "center", warning=FALSE}
+input <- aggregate(price ~ days_left, data, mean)
+ggplot(input, aes(x = days_left, y = price, fill = price)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "#FF9999", high = "#FF5555") +
+  labs(x = "Days left", y = "Price", title = "Average price for days left until departure") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  scale_x_discrete(limits=seq(1,49))
+
+```
+
+
+
+```{r  fig3, fig.height = 5, fig.width = 11, fig.align = "center", warning=FALSE}
+input <- aggregate(price ~ class + days_left, data, mean)
+ggplot(input, aes(x = days_left, y = price, fill = class)) + 
+  geom_bar(stat="identity", position="dodge", width=0.7) +
+  labs(x = "Days left", y = "Price", fill="Class", title = "Average price for days left according to class") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  scale_x_discrete(limits=seq(1,49))
+```
+
+
+
+We expect that the two plots have substantially the same shape but this is not the case,
+especially in the first day bar. This is due to the difference in percentages of Business 
+and Economy ticket availability between one day left until departure and the others.
+In particular the percentages for one day left are 86% Economy and 14% Business tickets, while
+the ones for two days left are 65% Economy and 25% Business tickets available.
+The percentage of Economy tickets is much higher when there is only one day left
+than when there are two or more days left until departure. This implies that if we compute the mean
+of the ticket's price without looking at the class in the first day the result is much lower than
+if we computed it for the other days.
+The conclusion is that, in any case, buying the ticket (Economy or Business) one day left until departure
+is not convenient: the first plot is useful to get a preliminary idea but not essential to take decisions.
+
+In fact:
+
+
+```{r  fig4, fig.height = 5, fig.width = 11, fig.align = "center", warning=FALSE}
+x <- aggregate(class ~ days_left, data, length)
+total_tikets <- x$class #total tickets available for each day left until departure
+
+df_business <- data[data$class == "Business",]
+x_business <- aggregate(df_business$class ~ df_business$days_left, data, length)
+perc_business <- x_business$`df_business$class`/ x$class
+
+df_economy <- data[data$class == "Economy",]
+x_economy <- aggregate(df_economy$class ~ df_economy$days_left, data, length)
+perc_economy <- x_economy$`df_economy$class`/ x$class
+
+df <- cbind(x,perc_business,perc_economy)
+names(df)[2] <- "total tickets"
+
+ggplot(df, aes(x = days_left, y = perc_economy)) +
+  geom_bar(stat = "identity", color="#FF9999") +
+  labs(x = "Days left", y = "Economy ticket percentage availability", title = "Percentages of Economy tickets available according to days left") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+```
+
+Since we are working with percentages we show only the plot for the Economy class tickets.
+We note that there is a different behavior in terms of availability of tickets when you book one with
+only one day left until departure.
+
+
+Does ticket price change based on the departure time and arrival time?
+
+```{r}
+input <- aggregate(price ~ departure_time, data, mean)
+p1 <- ggplot(input, aes(x = departure_time, y = price, fill = price)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "#FF9999", high = "#FF5555") +
+  labs(x = "Departure time", y = "Price", title = "Average price according to departure times") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+p1
+input <- aggregate(price ~ arrival_time, data, mean)
+p2 <- ggplot(input, aes(x = arrival_time, y = price, fill = price)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "#FF9999", high = "#FF5555") +
+  labs(x = "Arrival time", y = "Price", title = "Average price according to arrival times") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+p2
+```
+
+
+How the price changes with change in Source and Destination?
+
+```{r  fig5, fig.height = 5, fig.width = 11, fig.align = "center", warning=FALSE}
+#mean price from every source city to destination city
+input <- aggregate(price ~ destination_city + source_city, data, mean)
+ggplot(input, aes(x = source_city, y = price, fill = destination_city)) + 
+  geom_bar(stat="identity", position="dodge", width=0.7) +
+  labs(x = "Source city", y = "Price", fill="Destination city", title = "Average price between source city and destination cities") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+```
+
+## Correlation
+```{r}
+library(corrplot)
+corrplot.mixed(cor(data[,9:11]))
+```
+
+There are no interesting correlations.
+
+
+## Pre processing
+
+```{r}
+df = data
+# Deleting flights column which is useless for models
+df$flight <- NULL
+#head(df)
+
+df$airline <- as.factor(df$airline)
+df$source_city <- as.factor(df$source_city)
+df$departure_time <- as.factor(df$departure_time)
+df$stops <- as.factor(df$stops)
+df$arrival_time <- as.factor(df$arrival_time)
+df$destination_city <- as.factor(df$destination_city)
+df$class <- as.factor(df$class)
+str(df)
+```
+
+
+```{r}
+library(corrplot)
+library(caret)
+#Create dummies for each nominal feature
+dummy <- dummyVars(" ~ .", data=df)
+models_df <- data.frame(predict(dummy, newdata=df))
+
+#Correlations of all features
+#par(mar=c(3,3,3, 3))
+
+corrplot(cor(models_df), number.cex = 0.4, tl.cex=0.5, tl.pos="l")
+```
+
+
+We expect that from the variable importance point of view, the features class and
+stops will have a big impact on the prediction of the future prices 
+
+
+# Models
+
+### Splitting in train and test sets for regression and decision trees
+
+```{r}
+#Create index for train and test splittig
+index <- sample(nrow(models_df), 0.8 * nrow(models_df))
+
+#Split in train and test set for regression
+df_train <- models_df[index,]
+df_test <- models_df[-index,]
+dim(df_train)
+dim(df_test)
+
+#Split in train and test for decision tree and random forest with same index
+df_train_rf <- df[index,]
+df_test_rf <- df[-index,]
+dim(df_train_rf)
+dim(df_test_rf)
+```
+
+
+### Scaling Data
+
+```{r}
+#Scaling data function
+#we use min max since the numerical features are always positive
+min_max_scale <- function(x, range = c(0, 1)) {
+  # Calculate min and max values of x
+  x_min <- min(x, na.rm = TRUE)
+  x_max <- max(x, na.rm = TRUE)
+  # Scale x to the specified range
+  (x - x_min) / (x_max - x_min) * (range[2] - range[1]) + range[1]
+}
+
+#Scaling days_left and duration
+min_duration = min(df_train$duration)
+max_duration = max(df_train$duration)
+min_days = min(df_train$days_left)
+max_days = max(df_train$days_left)
+
+df_train$days_left <- min_max_scale(df_train$days_left)
+df_train$duration <- min_max_scale(df_train$duration)
+
+df_test$days_left <- (df_test$days_left - min_days)/(max_days - min_days)
+df_test$duration <- (df_test$duration - min_duration)/(max_duration - min_duration)
+
+```
+
+### Error measures function
+```{r}
+# Error measures function
+error_measures <- function(y_true, y_pred, model_name = "Tree_Model") {
+  r_squared <- cor(y_true, y_pred) ^ 2
+  mse <- mean((y_true - y_pred) ^ 2)
+  rmse <- sqrt(mse)
+  mae <- mean(abs(y_true - y_pred))
+  
+  metrics_df <- data.frame(Model_Name = model_name,
+                           R_Squared = r_squared, 
+                           MSE = mse, 
+                           RMSE = rmse, 
+                           MAE = mae)
+  return(metrics_df)
+}
+```
+
+
+Now we proceed with the computation of the linear regression model
+
+
+```{r}
+#Linear Model
+m1 <- lm(price ~ ., data=df_train)
+
+m2 <- lm(price ~ . -departure_time.Evening -departure_time.Late_Night -arrival_time.Late_Night, data=df_train)
+
+anova(m1,m2)
+```
+
+We choose m2 as our final general model after the anova for nested models test.
+
+
+### Residuals analysis
+
+```{r}
+r1 <- ggplot(data = data.frame(residuals(m2)), aes(x = residuals(m2))) + 
+  geom_histogram(binwidth = 1, color = "#FF8888") + 
+  xlab("Residuals") + ylab("Frequency") + 
+  ggtitle("Residuals histogram for the linear model") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+r1
+r2 <- ggplot(data = data.frame(residuals(m2)), aes(sample = residuals(m2))) + 
+  stat_qq() + 
+  stat_qq_line(colour="#FF6666") + 
+  xlab("Theoretical Quantiles") + ylab("Sample Quantiles") + 
+  ggtitle("QQ Plot of Residuals") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+r2
+```
+
+
+The tails are fatter than what you would see from a true normal. In other words
+those points are much further from the mean than you would expect if the
+data generating process were actually a normal distribution.
+Also by looking at the histogram we would say that our residuals are more likely to follow a t-student distribution rather than a normal.
+
+
+```{r}
+library(nortest)
+ad.test(residuals(m2)) #H1: log(L) ~ N
+
+```
+
+Obviously the normality of the residuals is rejected.
+
+### Testing model
+```{r}
+predicted_m2 <- predict(m2, newdata = df_test)
+err_m1 <- error_measures(df_test$price, predicted_m2, model_name = "Linear regression: all features ")
+```
+Since the Vistara airline company is the one that offers most flights among the airlines
+we chose to build 6 different models according to class and number of stops:
+  
+  - 3 model for economy class
+  
+  - 3 for business class
+  
+First of all we need six different train dataframes (one for each model):
+
+```{r}
+df_economy = df[df$class=="Economy", ]
+df_business = df[df$class=="Business", ]
+df_economy$class <- NULL
+df_business$class <- NULL
+
+df_economy_vistara = df_economy[df_economy$airline=="Vistara", ]
+df_business_vistara = df_business[df_business$airline=="Vistara", ]
+df_economy_vistara$airline <- NULL
+df_business_vistara$airline <- NULL
+
+df_business_vistara_zero = df_business_vistara[df_business_vistara$stops=="zero", ]
+df_business_vistara_one = df_business_vistara[df_business_vistara$stops=="one", ]
+df_business_vistara_two = df_business_vistara[df_business_vistara$stops=="two_or_more", ]
+df_economy_vistara_zero = df_economy_vistara[df_economy_vistara$stops=="zero", ]
+df_economy_vistara_one = df_economy_vistara[df_economy_vistara$stops=="one", ]
+df_economy_vistara_two = df_economy_vistara[df_economy_vistara$stops=="two_or_more", ]
+df_business_vistara_zero$stops <- NULL
+df_business_vistara_one$stops <- NULL
+df_business_vistara_two$stops <- NULL
+df_economy_vistara_zero$stops <- NULL
+df_economy_vistara_one$stops <- NULL
+df_economy_vistara_two$stops <- NULL
+```
+
+
+With the following code we train and validate our first linear model on its dedicated dedicated train and test sets for the subset of Vistara economy tickets with zero stop. We did the same procedures for each of the subsets created before. We will omit the code.
+
+```{r, warning=FALSE}
+#Model 1
+#Economy zero_stops
+#Splitting in train and test set
+index_train <- sample(nrow(df_economy_vistara_zero), 0.8 * nrow(df_economy_vistara_zero))
+
+df_model <- df_economy_vistara_zero[index_train, ]
+df_test_model <- df_economy_vistara_zero[-index_train, ]
+
+#Scaling days_left and duration
+min_duration = min(df_model$duration)
+max_duration = max(df_model$duration)
+min_days = min(df_model$days_left)
+max_days = max(df_model$days_left)
+
+df_model$days_left <- min_max_scale(df_model$days_left)
+df_model$duration <- min_max_scale(df_model$duration)
+
+df_test_model$days_left <- (df_test_model$days_left - min_days)/(max_days - min_days)
+df_test_model$duration <- (df_test_model$duration - min_duration)/(max_duration - min_duration)
+
+
+#Create dummies for each categorical feature
+dummy <- dummyVars(" ~ .", data=df_model)
+models_df <- data.frame(predict(dummy, newdata=df_model))
+
+dummy <- dummyVars(" ~ .", data=df_test_model)
+df_test_model <- data.frame(predict(dummy, newdata=df_test_model))
+
+#Creating model
+lm1 <- lm(price ~ ., data=models_df)
+summary(lm1)
+
+#Prediction on test set
+prediction = predict(lm1, newdata = df_test_model)
+true_data = df_test_model$price
+
+err_m2 <- error_measures(true_data, prediction, model_name = "Linear regression: Economy class - zero stops ")
+```
+
+
+```{r warning=FALSE}
+#Model 2
+#Economy one_stops
+#splitting in train and test set
+index_train <- sample(nrow(df_economy_vistara_one), 0.8 * nrow(df_economy_vistara_one))
+
+df_model <- df_economy_vistara_one[index_train, ]
+df_test_model <- df_economy_vistara_one[-index_train, ]
+
+#Scaling days_left and duration
+min_duration = min(df_model$duration)
+max_duration = max(df_model$duration)
+min_days = min(df_model$days_left)
+max_days = max(df_model$days_left)
+df_model$days_left <- min_max_scale(df_model$days_left)
+df_model$duration <- min_max_scale(df_model$duration)
+
+df_test_model$days_left <- (df_test_model$days_left - min_days)/(max_days - min_days)
+df_test_model$duration <- (df_test_model$duration - min_duration)/(max_duration - min_duration)
+
+
+#Create dummies for each categorical feature
+dummy <- dummyVars(" ~ .", data=df_model)
+models_df <- data.frame(predict(dummy, newdata=df_model))
+
+dummy <- dummyVars(" ~ .", data=df_test_model)
+df_test_model <- data.frame(predict(dummy, newdata=df_test_model))
+
+#Creating model
+
+lm2 <- lm(price ~ ., data=models_df)
+#summary(lm2)
+
+#Prediction on test set
+prediction = predict(lm2, newdata = df_test_model)
+true_data = df_test_model$price
+
+err_m3 <- error_measures(true_data, prediction, model_name = "Linear regression: Economy class - one stop ")
+#err_m3
+
+
+#Model 3
+#Economy two_stops
+#splitting in train and test set
+index_train <- sample(nrow(df_economy_vistara_two), 0.8 * nrow(df_economy_vistara_two))
+
+df_model <- df_economy_vistara_two[index_train, ]
+df_test_model <- df_economy_vistara_two[-index_train, ]
+
+#Scaling days_left and duration
+min_duration = min(df_model$duration)
+max_duration = max(df_model$duration)
+min_days = min(df_model$days_left)
+max_days = max(df_model$days_left)
+df_model$days_left <- min_max_scale(df_model$days_left)
+df_model$duration <- min_max_scale(df_model$duration)
+
+df_test_model$days_left <- (df_test_model$days_left - min_days)/(max_days - min_days)
+df_test_model$duration <- (df_test_model$duration - min_duration)/(max_duration - min_duration)
+
+
+#Create dummies for each categorical feature
+dummy <- dummyVars(" ~ .", data=df_model)
+models_df <- data.frame(predict(dummy, newdata=df_model))
+
+dummy <- dummyVars(" ~ .", data=df_test_model)
+df_test_model <- data.frame(predict(dummy, newdata=df_test_model))
+
+#Creating model
+
+lm3 <- lm(price ~ ., data=models_df)
+#summary(lm3)
+
+#Prediction on test set
+prediction = predict(lm3, newdata = df_test_model)
+prediction_vector = as.data.frame(prediction)$prediction
+true_data = df_test_model$price
+
+err_m4 <- error_measures(true_data, prediction, model_name = "Linear regression: Economy class - two or more stops ")
+#err_m4
+
+
+#Model 4
+#Business zero_stops
+#splitting in train and test set
+index_train <- sample(nrow(df_business_vistara_zero), 0.8 * nrow(df_business_vistara_zero))
+
+df_model <- df_business_vistara_zero[index_train, ]
+df_test_model <- df_business_vistara_zero[-index_train, ]
+
+#Scaling days_left and duration
+min_duration = min(df_model$duration)
+max_duration = max(df_model$duration)
+min_days = min(df_model$days_left)
+max_days = max(df_model$days_left)
+df_model$days_left <- min_max_scale(df_model$days_left)
+df_model$duration <- min_max_scale(df_model$duration)
+
+df_test_model$days_left <- (df_test_model$days_left - min_days)/(max_days - min_days)
+df_test_model$duration <- (df_test_model$duration - min_duration)/(max_duration - min_duration)
+
+
+#Create dummies for each categorical feature
+dummy <- dummyVars(" ~ .", data=df_model)
+models_df <- data.frame(predict(dummy, newdata=df_model))
+
+dummy <- dummyVars(" ~ .", data=df_test_model)
+df_test_model <- data.frame(predict(dummy, newdata=df_test_model))
+
+#Creating model
+
+lm4 <- lm(price ~ ., data=models_df)
+#summary(lm4)
+
+#Prediction on test set
+prediction = predict(lm4, newdata = df_test_model)
+true_data = df_test_model$price
+
+err_m5 <- error_measures(true_data, prediction, model_name = "Linear regression: Business class - zero stops ")
+#err_m5
+
+#Model 5
+#Business one_stops
+#splitting in train and test set
+index_train <- sample(nrow(df_business_vistara_one), 0.8 * nrow(df_business_vistara_one))
+
+df_model <- df_business_vistara_one[index_train, ]
+df_test_model <- df_business_vistara_one[-index_train, ]
+
+#Scaling days_left and duration
+min_duration = min(df_model$duration)
+max_duration = max(df_model$duration)
+min_days = min(df_model$days_left)
+max_days = max(df_model$days_left)
+df_model$days_left <- min_max_scale(df_model$days_left)
+df_model$duration <- min_max_scale(df_model$duration)
+
+df_test_model$days_left <- (df_test_model$days_left - min_days)/(max_days - min_days)
+df_test_model$duration <- (df_test_model$duration - min_duration)/(max_duration - min_duration)
+
+
+#Create dummies for each categorical feature
+dummy <- dummyVars(" ~ .", data=df_model)
+models_df <- data.frame(predict(dummy, newdata=df_model))
+
+dummy <- dummyVars(" ~ .", data=df_test_model)
+df_test_model <- data.frame(predict(dummy, newdata=df_test_model))
+
+#Creating model
+
+lm5 <- lm(price ~ ., data=models_df)
+#summary(lm5)
+
+#Prediction on test set
+prediction = predict(lm5, newdata = df_test_model)
+true_data = df_test_model$price
+
+err_m6 <- error_measures(true_data, prediction, model_name = "Linear regression: Business class - one stop ")
+#err_m6
+
+#Model 6
+#Business two_stops
+#splitting in train and test set
+index_train <- sample(nrow(df_business_vistara_two), 0.8 * nrow(df_business_vistara_two))
+
+df_model <- df_business_vistara_two[index_train, ]
+df_test_model <- df_business_vistara_two[-index_train, ]
+
+#Scaling days_left and duration
+min_duration = min(df_model$duration)
+max_duration = max(df_model$duration)
+min_days = min(df_model$days_left)
+max_days = max(df_model$days_left)
+df_model$days_left <- min_max_scale(df_model$days_left)
+df_model$duration <- min_max_scale(df_model$duration)
+
+df_test_model$days_left <- (df_test_model$days_left - min_days)/(max_days - min_days)
+df_test_model$duration <- (df_test_model$duration - min_duration)/(max_duration - min_duration)
+
+
+#Create dummies for each categorical feature
+dummy <- dummyVars(" ~ .", data=df_model)
+models_df <- data.frame(predict(dummy, newdata=df_model))
+
+dummy <- dummyVars(" ~ .", data=df_test_model)
+df_test_model <- data.frame(predict(dummy, newdata=df_test_model))
+
+#Creating model
+
+lm6 <- lm(price ~ ., data=models_df)
+#summary(lm6)
+
+#Prediction on test set
+prediction = predict(lm6, newdata = df_test_model)
+true_data = df_test_model$price
+
+err_m7 <- error_measures(true_data, prediction, model_name = "Linear regression: Business class - two or more stops ")
+#err_m7
+```
+
+
+### Decision trees and random forests
+
+We will show three regression decision trees:
+
+  - A general decision tree with all the data
+  
+  - A tree only for economy class
+  
+  - A tree only for business class
+  
+  
+```{r}
+library(rpart)
+library(rpart.plot)
+
+# First general model
+df_dt <- rpart(price ~ ., data = df_train_rf, method="anova")
+#summary(df_dt)
+rpart.plot(df_dt, extra=101)
+prediction_dt <- predict(df_dt, newdata = df_test_rf, method="anova")
+err_m8 <- error_measures(df_test_rf$price, prediction_dt, model_name = "Decision tree: all features ")
+```
+```{r}
+library(rpart)
+library(rpart.plot)
+# Economy class
+df_dt_eco <- rpart(price ~ ., data = df_train_rf[df_train_rf$class=="Economy",], method="anova")
+#summary(df_dt_eco)
+rpart.plot(df_dt_eco, extra=101)
+prediction_dt <- predict(df_dt_eco, newdata = df_test_rf, method="anova")
+err_m9 <- error_measures(df_test_rf$price, prediction_dt, model_name = "Decision tree: Economy class ")
+
+# Business class
+df_dt_bus <- rpart(price ~ ., data = df_train_rf[df_train_rf$class=="Business",], method="anova")
+#summary(df_dt_bus)
+rpart.plot(df_dt_bus, extra=101)
+prediction_dt <- predict(df_dt_bus, newdata = df_test_rf, method="anova")
+err_m10 <- error_measures(df_test_rf$price, prediction_dt, model_name = "Decision tree: Business class ")
+```
+
+
+
+With the aim of improving the performances of the regression trees, we run two random forests splitting by class, the most relevant feature in terms of variable importance.
+
+```{r}
+library(randomForest)
+library(tidyverse)
+library(dplyr)
+
+#Economy
+df_rf_eco <- randomForest(price ~ ., data = df_train_rf[df_train_rf$class=="Economy",], ntree = 10)
+prediction_rf <- predict(df_rf_eco, df_test_rf)
+varImpPlot(df_rf_eco, main = "Feature importance of Economy class random forest")
+err_m11 <- error_measures(df_test_rf$price, prediction_rf, model_name = "Random forest: Economy class ")
+
+#Business
+df_rf_bus <- randomForest(price ~ . -class, data = df_train_rf[df_train_rf$class=="Business",], ntree = 10)
+prediction_rf <- predict(df_rf_bus, df_test_rf)
+varImpPlot(df_rf_bus, main = "Feature importance of Business class random forest")
+err_m12 <- error_measures(df_test_rf$price, prediction_rf, model_name = "Random forest: Business class ")
+```
+
+## Conclusions
+
+```{r}
+final_table <- rbind(err_m1, err_m2, err_m3, err_m4, err_m5, err_m6, err_m7, err_m8, err_m9, err_m10, err_m11, err_m12)
+View(final_table)
+```
+
+Looking at the final table we note that it was essential to split in economy and business class tickets for linear regressions. Regarding the linear models is important to underline that the R-squared is not the only thing to look when validating the model. We note that decision trees and random forests are working better if ran with all the features with a much higher R-squared and much lower MSE.There surely are better models to conduct the analysis. 
+
