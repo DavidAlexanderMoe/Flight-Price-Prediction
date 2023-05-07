@@ -950,7 +950,7 @@ err_m12 <- error_measures(df_test_rf$price, prediction_rf, model_name = "Random 
 
 ```{r}
 final_table <- rbind(err_m1, err_m2, err_m3, err_m4, err_m5, err_m6, err_m7, err_m8, err_m9, err_m10, err_m11, err_m12)
-View(final_table)
+final_table
 ```
 
 Looking at the final table we note that it was essential to split in economy and business class tickets for linear regressions. Regarding the linear models is important to underline that the R-squared is not the only thing to look when validating the model. We note that decision trees and random forests are working better if ran with all the features with a much higher R-squared and much lower MSE.There surely are better models to conduct the analysis. 
