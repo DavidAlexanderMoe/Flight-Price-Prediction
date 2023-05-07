@@ -1272,8 +1272,35 @@ err_m12 <- error_measures(df_test_rf$price, prediction_rf, model_name = "Random 
 
 ``` r
 final_table <- rbind(err_m1, err_m2, err_m3, err_m4, err_m5, err_m6, err_m7, err_m8, err_m9, err_m10, err_m11, err_m12)
-View(final_table)
+final_table
 ```
+
+    ##                                                Model_Name  R_Squared        MSE
+    ## 1                        Linear regression: all features  0.91115495   45937334
+    ## 2          Linear regression: Economy class - zero stops  0.55634735    1925918
+    ## 3            Linear regression: Economy class - one stop  0.49502648    6879520
+    ## 4   Linear regression: Economy class - two or more stops  0.55453963    9013091
+    ## 5         Linear regression: Business class - zero stops  0.56814491   23530520
+    ## 6           Linear regression: Business class - one stop  0.20690947   93072324
+    ## 7  Linear regression: Business class - two or more stops  0.33932911   73119650
+    ## 8                            Decision tree: all features  0.91603705   43412860
+    ## 9                           Decision tree: Economy class  0.06769841  691553063
+    ## 10                         Decision tree: Business class  0.03389251 1483665496
+    ## 11                          Random forest: Economy class  0.07655940  687451440
+    ## 12                         Random forest: Business class  0.09662253 1353562693
+    ##         RMSE       MAE
+    ## 1   6777.709  4595.113
+    ## 2   1387.774  1033.864
+    ## 3   2622.884  1957.211
+    ## 4   3002.181  2296.456
+    ## 5   4850.827  3154.300
+    ## 6   9647.400  7499.671
+    ## 7   8551.003  6766.310
+    ## 8   6588.844  4324.981
+    ## 9  26297.397 15266.326
+    ## 10 38518.379 32897.769
+    ## 11 26219.295 14748.656
+    ## 12 36790.796 30791.768
 
 Looking at the final table we note that it was essential to split in
 economy and business class tickets for linear regressions. Regarding the
