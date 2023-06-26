@@ -1,4 +1,2 @@
-# flight-price-prediction
-EDA and prediction for flight tickets
-
-## Click on the Title.md file to view the analysis
+# Flight Price EDA and Prediction using ML models in R
+## Title.md file to read the analysis.
